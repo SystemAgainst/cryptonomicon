@@ -1,0 +1,18 @@
+{
+  "Response": "Success",
+  "Message": "Summary coin list successfully returned!",
+  "Data": {
+    "42": {
+      "Id": "4321",
+      "ImageUrl": "/media/35650717/42.jpg",
+      "Symbol":"42",
+      "FullName":"42 Coin (42)"
+    },
+    "300": {
+      "Id": "749869",
+      "ImageUrl": "/media/27010595/300.png",
+      "Symbol":"300",
+      "FullName":"300 token (300)"
+    }
+  }
+}
