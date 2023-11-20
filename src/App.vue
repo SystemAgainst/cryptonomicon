@@ -1,73 +1,86 @@
 <script>
-import {ref} from "vue";
-
 export default {
-  setup() {
-    const ticker = ref("");
-    const tickers = ref([]);
-    const sel = ref(null);
-    const graph = ref([]);
-    const isElVisible = ref(true);
+  name: "App",
 
-    const add = () => {
-      const currentTicker = {
-        name: ticker.value,
-        price: "-",
-      };
+  data() {
+    return {
+      ticker: "",
 
-      tickers.value.push(currentTicker);
+      tickers: [],
+      selectedTicker: null,
 
+      graph: [],
+
+      sel: null,
+    };
+  },
+
+  created() {
+    const tickersData = localStorage.getItem("cryptonomicon-list");
+
+    if (tickersData) {
+      this.tickers = JSON.parse(tickersData);
+      this.tickers.forEach((ticker) => {
+        this.subscribeToUpdate(ticker.name);
+      })
+    }
+  },
+
+  computed: {
+    normalizedGraph() {
+      const maxValue = Math.max(...this.graph);
+      const minValue = Math.min(...this.graph);
+
+      if (maxValue === minValue) {
+        return this.graph.map(() => 50);
+      }
+
+      return this.graph.map(
+        price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
+      );
+    },
+  },
+  methods: {
+    subscribeToUpdate(tickerName) {
       setInterval(async () => {
         const f = await fetch(
-            `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=ce3fd966e7a1d10d65f907b20bf000552158fd3ed1bd614110baa0ac6cb57a7e`
+          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=510d3aab8b80efd6a8652fd12ebb18d39ae019aff32d235db1e8baee09aee9e2`
         );
         const data = await f.json();
         try {
-          tickers.value.find((t) => t.name === currentTicker.name).price =
-              data?.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+          this.tickers.find((t) => t.name === tickerName).price =
+            data?.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
         } catch (e) {
           console.log(e);
         }
-        if (sel.value?.name === currentTicker.name) {
-          graph.value.push(data.USD);
+        if (this.sel?.name === tickerName) {
+          this.graph.push(data.USD);
         }
       }, 5000);
+    },
 
-      ticker.value = "";
-    };
+    add() {
+      const currentTicker = {
+        name: this.ticker,
+        price: "-",
+      };
 
-    const select = (ticker) => {
-      sel.value = ticker;
-      graph.value = [];
-    };
+      this.tickers.push(currentTicker);
 
-    const handleDelete = (ticketToRemove) => {
-      tickers.value = tickers.value.filter(t => t !== ticketToRemove);
-    };
+      localStorage.setItem("cryptonomicon-list", JSON.stringify(this.tickers));
+      this.subscribeToUpdate(currentTicker.name);
 
-    const normalizeGraph = () => {
-      const maxValue = Math.max(...graph.value);
-      const minValue = Math.min(...graph.value);
+      this.ticker = "";
+    },
 
-      return graph.value.map((price) =>
-        minValue === maxValue
-          ? 100
-          : 5 + ((price - minValue) * 95) / (maxValue - minValue)
-      );
-    };
+    select(ticker) {
+      this.sel = ticker;
+      this.graph = [];
+    },
 
-    return {
-      ticker,
-      tickers,
-      sel,
-      graph,
-      isElVisible,
-
-      add,
-      select,
-      handleDelete,
-      normalizeGraph,
-    };
+    handleDelete(tickerToRemove) {
+      this.tickers = this.tickers.filter(t => t !== tickerToRemove);
+    },
   },
 }
 </script>
@@ -190,7 +203,7 @@ export default {
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
-            v-for="(bar, idx) in normalizeGraph()"
+            v-for="(bar, idx) in normalizedGraph()"
             :key="idx"
             :style="{ height: `${bar}%` }"
             class="bg-purple-800 border w-10"
