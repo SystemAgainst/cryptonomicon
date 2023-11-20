@@ -5,26 +5,32 @@ export default {
   data() {
     return {
       ticker: "",
-
       tickers: [],
-      selectedTicker: null,
-
-      graph: [],
-
       sel: null,
+      graph: [],
       page: 1,
       filter: "",
-      hasNextPage: true,
+      hasNextPage: true
     };
   },
 
   created() {
+    const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
+
+    if (windowData.filter) {
+      this.filter = windowData.filter;
+    }
+
+    if (windowData.page) {
+      this.page = windowData.page;
+    }
+
     const tickersData = localStorage.getItem("cryptonomicon-list");
 
     if (tickersData) {
       this.tickers = JSON.parse(tickersData);
       this.tickers.forEach((ticker) => {
-        this.subscribeToUpdate(ticker.name);
+        this.subscribeToUpdates(ticker.name);
       })
     }
   },
@@ -44,34 +50,56 @@ export default {
     },
 
   },
+
+  watch: {
+    filter() {
+      this.page = 1;
+
+      const { pathname } = window.location;
+      const url = `${pathname}?filter=${this.filter}&page=${this.page}`;
+
+      window.history.pushState(null, document.title, url);
+    },
+
+    page() {
+      const { pathname } = window.location;
+      const url = `${pathname}?filter=${this.filter}&page=${this.page}`;
+
+      window.history.pushState(null, document.title, url);
+    }
+  },
+
   methods: {
     filteredTickers() {
       const countTicker = 6;
-      const start = countTicker * (this.page - 1);
-      const end = countTicker * this.page;
+      const start = (this.page - 1) * countTicker;
+      const end = this.page * countTicker;
 
-      const filteredTickers = this.tickers.filter((ticker) => ticker.name.includes(this.filter));
+      const filteredTickers = this.tickers.filter((ticker) =>
+        ticker.name.includes(this.filter)
+      );
+
       this.hasNextPage = filteredTickers.length > end;
 
       return filteredTickers.slice(start, end);
     },
 
-    subscribeToUpdate(tickerName) {
+    subscribeToUpdates(tickerName) {
       setInterval(async () => {
         const f = await fetch(
           `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=510d3aab8b80efd6a8652fd12ebb18d39ae019aff32d235db1e8baee09aee9e2`
         );
         const data = await f.json();
-        try {
-          this.tickers.find((t) => t.name === tickerName).price =
-            data?.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-        } catch (e) {
-          console.log(e);
-        }
+
+        // currentTicker.price =  data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+        this.tickers.find(t => t.name === tickerName).price =
+          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+
         if (this.sel?.name === tickerName) {
           this.graph.push(data.USD);
         }
       }, 5000);
+      this.ticker = "";
     },
 
     add() {
@@ -84,9 +112,7 @@ export default {
       this.filter = "";
 
       localStorage.setItem("cryptonomicon-list", JSON.stringify(this.tickers));
-      this.subscribeToUpdate(currentTicker.name);
-
-      this.ticker = "";
+      this.subscribeToUpdates(currentTicker.name);
     },
 
     select(ticker) {
@@ -171,14 +197,14 @@ export default {
         <div>
           <button
             class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            @click="page -= 1"
             v-if="page > 1"
+            @click="page = page - 1"
           >
             Назад
           </button>
           <button
             class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            @click="page += 1"
+            @click="page = page + 1"
             v-if="hasNextPage"
           >
             Вперед
