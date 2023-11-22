@@ -5,12 +5,15 @@ export default {
   data() {
     return {
       ticker: "",
-      tickers: [],
-      sel: null,
-      graph: [],
-      page: 1,
       filter: "",
-      hasNextPage: true
+
+      tickers: [],
+      selectedTicker: null,
+
+      graph: [],
+
+      page: 1,
+      countTicker: 6,
     };
   },
 
@@ -36,6 +39,28 @@ export default {
   },
 
   computed: {
+    startIndex() {
+      return (this.page - 1) * this.countTicker;
+    },
+
+    endIndex() {
+      return this.page* this.countTicker;
+    },
+
+    filteredTickers() {
+      return this.tickers.filter((ticker) =>
+        ticker.name.includes(this.filter)
+      );
+    },
+
+    paginatedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex);
+    },
+
+    hasNextPage() {
+      return this.filteredTickers.length > this.endIndex;
+    },
+
     normalizedGraph() {
       const maxValue = Math.max(...this.graph);
       const minValue = Math.min(...this.graph);
@@ -49,41 +74,44 @@ export default {
       );
     },
 
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
+      };
+    },
   },
 
   watch: {
+    selectedTicker() {
+      this.graph = [];
+    },
+
+    tickers(newValue, oldValue) {
+      // Почему не сработал watch при добавлении?
+      console.log(newValue === oldValue);
+      localStorage.setItem("cryptonomicon-list", JSON.stringify(this.tickers));
+    },
+
+    paginatedTickers() {
+      if (this.paginatedTickers.location === 0 && this.page > 1) {
+        this.page -= 1;
+      }
+    },
+
     filter() {
       this.page = 1;
+    },
 
+    pageStateOptions(value) {
       const { pathname } = window.location;
-      const url = `${pathname}?filter=${this.filter}&page=${this.page}`;
+      const url = `${pathname}?filter=${value.filter}&page=${value.page}`;
 
       window.history.pushState(null, document.title, url);
     },
-
-    page() {
-      const { pathname } = window.location;
-      const url = `${pathname}?filter=${this.filter}&page=${this.page}`;
-
-      window.history.pushState(null, document.title, url);
-    }
   },
 
   methods: {
-    filteredTickers() {
-      const countTicker = 6;
-      const start = (this.page - 1) * countTicker;
-      const end = this.page * countTicker;
-
-      const filteredTickers = this.tickers.filter((ticker) =>
-        ticker.name.includes(this.filter)
-      );
-
-      this.hasNextPage = filteredTickers.length > end;
-
-      return filteredTickers.slice(start, end);
-    },
-
     subscribeToUpdates(tickerName) {
       setInterval(async () => {
         const f = await fetch(
@@ -95,7 +123,7 @@ export default {
         this.tickers.find(t => t.name === tickerName).price =
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
-        if (this.sel?.name === tickerName) {
+        if (this.selectedTicker?.name === tickerName) {
           this.graph.push(data.USD);
         }
       }, 5000);
@@ -108,20 +136,22 @@ export default {
         price: "-",
       };
 
-      this.tickers.push(currentTicker);
+      this.tickers = [...this.tickers, currentTicker];
       this.filter = "";
 
-      localStorage.setItem("cryptonomicon-list", JSON.stringify(this.tickers));
       this.subscribeToUpdates(currentTicker.name);
     },
 
     select(ticker) {
-      this.sel = ticker;
-      this.graph = [];
+      this.selectedTicker = ticker;
     },
 
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t !== tickerToRemove);
+
+      if (this.selectedTicker === tickerToRemove) {
+        this.selectedTicker = null;
+      }
     },
   },
 }
@@ -217,11 +247,11 @@ export default {
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="t in filteredTickers()"
+            v-for="t in paginatedTickers"
             :key="t.name"
             @click="select(t)"
             :class="{
-            'border-4': sel === t,
+            'border-4': selectedTicker === t,
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -259,14 +289,14 @@ export default {
 
       <section
         class="relative"
-        v-if="sel"
+        v-if="selectedTicker"
       >
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
-          {{ sel.name }} - USD
+          {{ selectedTicker.name }} - USD
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
-            v-for="(bar, idx) in normalizedGraph()"
+            v-for="(bar, idx) in normalizedGraph"
             :key="idx"
             :style="{ height: `${bar}%` }"
             class="bg-purple-800 border w-10"
@@ -275,7 +305,7 @@ export default {
         <button
           type="button"
           class="absolute top-0 right-0"
-          @click="sel = null"
+          @click="selectedTicker = null"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
